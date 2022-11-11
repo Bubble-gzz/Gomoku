@@ -29,7 +29,7 @@ public class State{
         if (y < 0 || y >= n) return false;
         return true;
     }
-    public bool CheckStatus()
+    public bool GameOver()
     {
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)

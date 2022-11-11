@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using TMPro;
 public class ChessBoard : MonoBehaviour
 {
     [SerializeField]
@@ -15,6 +15,9 @@ public class ChessBoard : MonoBehaviour
     [SerializeField]
     GameObject clickAreaPrefab;
     GameObject[,] chess;
+    [SerializeField]
+    GameObject debugValuePrefab;
+    GameObject[,] debugValues;
     int[,] color;
     bool[,] hasChess;
     public int turn, playerTurn;
@@ -26,16 +29,18 @@ public class ChessBoard : MonoBehaviour
     {
         Init();
         DrawLine();
-        SpawnColliders();
+        Spawn();
     }
     void Start()
     {
         computer = GameObject.Find("AI").GetComponent<AI>();
+        computer.chessBoard = this;
         computer.n = this.n;
     }
     void Init()
     {
         chess = new GameObject[n, n];
+        debugValues = new GameObject[n, n];
         color = new int[n, n];
         hasChess = new bool[n, n];
         turn = 0;
@@ -68,7 +73,7 @@ public class ChessBoard : MonoBehaviour
             newLine.transform.localPosition = new Vector2(anchor + interval * j, 0);
         }
     }
-    void SpawnColliders()
+    void Spawn()
     {
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
@@ -78,6 +83,10 @@ public class ChessBoard : MonoBehaviour
                 clickArea.transform.localPosition = BoardPosition(new Vector2(i, j));
                 script.chessBoard = this;
                 script.pos = new Vector2(i, j);
+
+                GameObject debugValue = Instantiate(debugValuePrefab, transform);
+                debugValues[i, j] = debugValue;
+                debugValue.transform.localPosition = BoardPosition(new Vector2(i, j));
             }
     }
     Vector2 BoardPosition(Vector2 pos)
@@ -173,5 +182,9 @@ public class ChessBoard : MonoBehaviour
                 if (!hasChess[i, j]) res.board[i, j] = -1;
                 else res.board[i, j] = color[i, j];
         return res;
+    }
+    public void SetText(int i, int j, string newText)
+    {
+        debugValues[i, j].GetComponentInChildren<TMP_Text>().text = newText;
     }
 }

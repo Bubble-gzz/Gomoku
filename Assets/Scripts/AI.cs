@@ -12,19 +12,18 @@ public class AI : MonoBehaviour
     int computation;
     [SerializeField]
     int distLimit;
-    float win;
     [SerializeField]
-    float gamma = -5;
+    int widthLimit;
     [SerializeField]
-    float score_XOOOOX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO;// score_XOOXOX; 2-step
+    List<float> score_OOOOO, score_XOOOOX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO;// score_XOOXOX; 2-step
     [SerializeField]
-    float score_XOOOOB, score_XOOOB, score_XOOB, score_XOB;
+    List<float> score_XOOOOB, score_XOOOB, score_XOOB, score_XOB;
     class Pattern{
         public string name;
         public int dk, len;
         public int[] mask;
-        public float score;
-        public Pattern(int len, int[] mask, float score, int dk = 0, string name = "")
+        public List<float> score;
+        public Pattern(int len, int[] mask, List<float> score, int dk = 0, string name = "")
         {
             this.len = len; this.mask = mask; this.score = score; this.dk = dk;
             this.name = name;
@@ -40,14 +39,15 @@ public class AI : MonoBehaviour
     Strategy strategy;
     
     List<Vector2> offsets = new List<Vector2>(); 
+    public ChessBoard chessBoard;
     void Awake()
     {
-        score_XOOOOX = win = Mathf.Abs(inf / gamma);
         offsets.Add(new Vector2(0, 1));
         offsets.Add(new Vector2(1, 0));
         offsets.Add(new Vector2(1, 1));
         offsets.Add(new Vector2(-1, 1));
-        
+        patterns.Add(new Pattern(5, new int[5]{0,0,0,0,0}, score_OOOOO, -1, "OOOOO"));
+
         patterns.Add(new Pattern(6, new int[6]{-1,0,0,0,0,-1}, score_XOOOOX, -1, "XOOOOX"));
         
         patterns.Add(new Pattern(5, new int[5]{-1,0,0,0,-1}, score_XOOOX, -1, "XOOOX"));
@@ -76,6 +76,28 @@ public class AI : MonoBehaviour
             this.y = y;
             this.dist = dist;
         }
+    }
+    class Choice{
+        public int x, y;
+        public float value;
+        public Choice(int x, int y, float value)
+        {
+            this.x = x;
+            this.y = y;
+            this.value = value;
+        }
+    }
+    int AscendChoice(Choice A, Choice B)
+    {
+        if (A.value < B.value - 0.001f) return -1;
+        if (A.value > B.value + 0.001f) return 1;
+        return 0;
+    }
+    int DescendChoice(Choice A, Choice B)
+    {
+        if (A.value < B.value - 0.001f) return 1;
+        if (A.value > B.value + 0.001f) return -1;
+        return 0;
     }
     int[] dx = new int[4]{1,0,-1,0};
     int[] dy = new int[4]{0,1,0,-1};
@@ -109,7 +131,7 @@ public class AI : MonoBehaviour
     }
     float Evaluate(State state, int turn)
     {
-        float score = 0;
+        float totalScore = 0;
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
             if (state.board[i, j] != -1)                        //prune
@@ -119,12 +141,12 @@ public class AI : MonoBehaviour
                     {
                         int matchResult = MatchResult(state, turn, i, j, offset, pattern);
                         if (matchResult == -1) continue;
-                        
-                        if (matchResult == 0) score += pattern.score;
-                        else score += pattern.score * gamma;
+                        float score = pattern.score[matchResult];
+                        if ((turn^matchResult) != myTurn) score *= -1;
+                        totalScore += score;
                     }
                 }
-        return score;
+        return totalScore;
     }
     bool PosOnBoard(Vector2 pos)
     {
@@ -199,73 +221,110 @@ public class AI : MonoBehaviour
         float bestValue = -inf;
         int[,] dist = new int[n, n];
         CalcDist(state, ref dist);
+        List<Choice> candidatePos = new List<Choice>();
+
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
-            if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
             {
-                State newState = state.PlaceChess(i, j, myTurn);
-                float value = MiniMax(newState, 1, myTurn ^ 1, bestValue, inf);
-                if (value > bestValue)
+                chessBoard.SetText(i, j, "");
+                if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
                 {
-                    bestValue = value;
-                    bestChoices.Clear();
-                    bestChoices.Add(new Vector2(i, j));
-                }
-                else if (Mathf.Abs(value - bestValue) < 0.001f)
-                {
-                    bestChoices.Add(new Vector2(i, j));
+                    State newState = state.PlaceChess(i, j, myTurn);
+                    float value = Evaluate(newState, myTurn^1);
+                    candidatePos.Add(new Choice(i, j, value));
                 }
             }
+        candidatePos.Sort(DescendChoice);
+        for (int k = 0; k < candidatePos.Count; k++)
+        {
+            if (k >= widthLimit) break;
+            int i = candidatePos[k].x, j = candidatePos[k].y;
+            State newState = state.PlaceChess(i, j, myTurn);
+            if (newState.GameOver())
+            {
+                bestChoices.Clear();
+                bestChoices.Add(new Vector2(i, j));
+                break;
+            }
+            float value = MiniMax(newState, 1, myTurn ^ 1, bestValue, inf);
+            chessBoard.SetText(i, j, (Mathf.Sign(value) * Mathf.Log10(Mathf.Abs(value))).ToString("f1"));
+            if (value > bestValue)
+            {
+                bestValue = value;
+                bestChoices.Clear();
+                bestChoices.Add(new Vector2(i, j));
+            }
+            else if (Mathf.Abs(value - bestValue) < 0.001f)
+            {
+                bestChoices.Add(new Vector2(i, j));
+            }
+        }
         choice = bestChoices[Random.Range(0, bestChoices.Count)];
+        Debug.Log("bestValue : " + bestValue);
         return choice;
     }
     float MiniMax(State state, int depth, int turn, float alpha, float beta)
     {
         computation++;
         //Debug.Log("computation : " + computation);
-        if (state.CheckStatus())
+        if (state.GameOver())
         {
             Debug.Log("gameover depth:" + depth);
-            if (turn != myTurn) return win;
-            else return gamma * win;
+            if (turn != myTurn) return inf - depth;
+            else return - inf + depth;
         }
         if (depth == depthLimit || computation >= computationLimit)
-            return Evaluate(state, myTurn);
+            return Evaluate(state, turn);
         float bestValue;
         int[,] dist = new int[n, n];
         CalcDist(state, ref dist);
+        
+        List<Choice> candidatePos = new List<Choice>();
+
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+            if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
+            {
+                State newState = state.PlaceChess(i, j, turn);
+                float value = Evaluate(newState, turn^1);
+                candidatePos.Add(new Choice(i, j, value));
+            }
+
         if (turn == myTurn)
         {
             bestValue = -inf;
-            for (int i = 0; i < n; i++)
+            candidatePos.Sort(DescendChoice);
+            for (int k = 0; k < candidatePos.Count; k++)
             {
-                for (int j = 0; j < n; j++)
-                    if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
-                    {
-                        State newState = state.PlaceChess(i, j, turn ^ 1);
-                        float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
-                        bestValue = Mathf.Max(bestValue, value);
-                        alpha = Mathf.Max(alpha, value);
-                        if (beta <= alpha || computation >= computationLimit) break;
-                    }
+                if (k >= widthLimit) break;
+                int i = candidatePos[k].x, j = candidatePos[k].y;
+
+                State newState = state.PlaceChess(i, j, turn);
+                float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
+                bestValue = Mathf.Max(bestValue, value);
+                alpha = Mathf.Max(alpha, value);
                 if (beta <= alpha || computation >= computationLimit) break;
             }
         }
         else
         {
             bestValue = inf;
-            for (int i = 0; i < n; i++)
+            candidatePos.Sort(AscendChoice);
+            for (int k = 0; k < candidatePos.Count; k++)
             {
-                for (int j = 0; j < n; j++)
-                    if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
-                    {
-                        State newState = state.PlaceChess(i, j, turn ^ 1);
-                        float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
-                        bestValue = Mathf.Min(bestValue, value);
-                        beta = Mathf.Min(beta, value);
-                        if (beta <= alpha || computation >= computationLimit) break;
-                    }
-                if (beta <= alpha || computation >= computationLimit) break;     
+                if (k >= widthLimit) break;
+                int i = candidatePos[k].x, j = candidatePos[k].y;
+
+                State newState = state.PlaceChess(i, j, turn);
+                //if (newState.CheckStatus())
+                //{
+                //    Debug.Log("turn : "+ turn + "  GameOver at pos(" + i + ", " + j + ")");
+                //}
+                //else Debug.Log("turn : "+ turn + "  try pos(" + i + ", " + j + ")");
+                float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
+                bestValue = Mathf.Min(bestValue, value);
+                beta = Mathf.Min(beta, value);
+                if (beta <= alpha || computation >= computationLimit) break;
             }
         }
         return bestValue;
