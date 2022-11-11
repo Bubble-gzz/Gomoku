@@ -15,7 +15,7 @@ public class AI : MonoBehaviour
     [SerializeField]
     int widthLimit;
     [SerializeField]
-    List<float> score_OOOOO, score_XOOOOX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO;// score_XOOXOX; 2-step
+    List<float> score_OOOOO, score_XOOOOX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO, score_XOOXOX;// score_XOOXOX; 2-step
     [SerializeField]
     List<float> score_XOOOOB, score_XOOOB, score_XOOB, score_XOB;
     class Pattern{
@@ -57,6 +57,9 @@ public class AI : MonoBehaviour
         patterns.Add(new Pattern(5, new int[5]{0,0,-1,0,0}, score_OOXOO, 0));
         patterns.Add(new Pattern(5, new int[5]{0,-1,0,0,0}, score_OXOOO, 0, "OXOOO"));
         patterns.Add(new Pattern(5, new int[5]{0,0,0,-1,0}, score_OXOOO, 0, "OXOOO"));
+        
+        patterns.Add(new Pattern(6, new int[6]{-1,0,0,-1,0,-1}, score_XOOXOX, -1, "XOOXOX"));
+        patterns.Add(new Pattern(6, new int[6]{-1,0,-1,0,0,-1}, score_XOOXOX, -1, "XOOXOX"));
 
         patterns.Add(new Pattern(6, new int[6]{-1,0,0,0,0,1}, score_XOOOOB, -1));
         patterns.Add(new Pattern(6, new int[6]{1,0,0,0,0,-1}, score_XOOOOB, -1));

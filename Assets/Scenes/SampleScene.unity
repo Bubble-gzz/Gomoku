@@ -381,6 +381,9 @@ MonoBehaviour:
   score_OXOOO:
   - 1e+9
   - 10000000
+  score_XOOXOX:
+  - 100000000
+  - 1000000
   score_XOOOOB:
   - 1e+9
   - 10000000
