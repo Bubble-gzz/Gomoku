@@ -25,6 +25,7 @@ public class ChessBoard : MonoBehaviour
     public bool gameOver;
     public bool calculating;
     AI computer;
+    Vector2[] lastComputerPos = new Vector2[2];
     void Awake()
     {
         Init();
@@ -39,6 +40,9 @@ public class ChessBoard : MonoBehaviour
     }
     void Init()
     {
+        lastComputerPos[0] = new Vector2(-1, -1);
+        lastComputerPos[1] = new Vector2(-1, -1);
+
         chess = new GameObject[n, n];
         debugValues = new GameObject[n, n];
         color = new int[n, n];
@@ -127,7 +131,20 @@ public class ChessBoard : MonoBehaviour
         {
             GameOver(turn);
             yield break;
-        }    
+        }
+        if (turn == computer.myTurn)
+        {
+            if (PosOnBoard(lastComputerPos[turn]))
+            {
+                int i = (int)lastComputerPos[turn].x, j = (int)lastComputerPos[turn].y;
+                chess[i, j].GetComponentInChildren<TMP_Text>().enabled = false;
+            }
+            lastComputerPos[turn] = new Vector2(x, y);
+            Debug.Log("turn : " + turn + "  current chess : " + chess[x, y]);
+            chess[x, y].GetComponentInChildren<TMP_Text>().enabled = true;
+        }
+
+
         turn = (turn + 1) % 2;
         if (turn == computer.myTurn)
         {

@@ -57,7 +57,7 @@ public class AI : MonoBehaviour
         patterns.Add(new Pattern(5, new int[5]{0,0,-1,0,0}, score_OOXOO, 0));
         patterns.Add(new Pattern(5, new int[5]{0,-1,0,0,0}, score_OXOOO, 0, "OXOOO"));
         patterns.Add(new Pattern(5, new int[5]{0,0,0,-1,0}, score_OXOOO, 0, "OXOOO"));
-        
+
         patterns.Add(new Pattern(6, new int[6]{-1,0,0,-1,0,-1}, score_XOOXOX, -1, "XOOXOX"));
         patterns.Add(new Pattern(6, new int[6]{-1,0,-1,0,0,-1}, score_XOOXOX, -1, "XOOXOX"));
 
@@ -233,6 +233,7 @@ public class AI : MonoBehaviour
                 if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
                 {
                     State newState = state.PlaceChess(i, j, myTurn);
+                    if (newState.GameOver()) return new Vector2(i, j);   //Checkmate
                     float value = Evaluate(newState, myTurn^1);
                     candidatePos.Add(new Choice(i, j, value));
                 }
@@ -243,12 +244,6 @@ public class AI : MonoBehaviour
             if (k >= widthLimit) break;
             int i = candidatePos[k].x, j = candidatePos[k].y;
             State newState = state.PlaceChess(i, j, myTurn);
-            if (newState.GameOver())
-            {
-                bestChoices.Clear();
-                bestChoices.Add(new Vector2(i, j));
-                break;
-            }
             float value = MiniMax(newState, 1, myTurn ^ 1, bestValue, inf);
             chessBoard.SetText(i, j, (Mathf.Sign(value) * Mathf.Log10(Mathf.Abs(value))).ToString("f1"));
             if (value > bestValue)
@@ -289,6 +284,11 @@ public class AI : MonoBehaviour
             if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
             {
                 State newState = state.PlaceChess(i, j, turn);
+                if (newState.GameOver())
+                {
+                    if (turn == myTurn) return inf - depth;
+                    else return - inf + depth;
+                }
                 float value = Evaluate(newState, turn^1);
                 candidatePos.Add(new Choice(i, j, value));
             }
