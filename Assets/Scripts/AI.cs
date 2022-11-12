@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class AI : MonoBehaviour
 {
-    const float inf = (float)1e9;
+    const float inf = (float)1e7;
     [SerializeField]
     public int depthLimit;
     [SerializeField]
@@ -15,9 +15,15 @@ public class AI : MonoBehaviour
     [SerializeField]
     int widthLimit;
     [SerializeField]
-    List<float> score_OOOOO, score_XOOOOX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO, score_XOOXOX;// score_XOOXOX; 2-step
+    float gapThreshold;
+    [SerializeField]
+    float criticalThreshold;
+    [SerializeField]
+    List<float> score_OOOOO, score_XOOOOX, score_XOOOXX, score_XOOOX, score_XOOX, score_XOX, score_OOXOO, score_OXOOO, score_XOOXOX;
     [SerializeField]
     List<float> score_XOOOOB, score_XOOOB, score_XOOB, score_XOB;
+    [SerializeField]
+    List<float> score_double_trap;
     class Pattern{
         public string name;
         public int dk, len;
@@ -50,6 +56,8 @@ public class AI : MonoBehaviour
 
         patterns.Add(new Pattern(6, new int[6]{-1,0,0,0,0,-1}, score_XOOOOX, -1, "XOOOOX"));
         
+        patterns.Add(new Pattern(6, new int[6]{-1,0,0,0,-1,-1}, score_XOOOXX, -1, "XOOOXX"));
+        patterns.Add(new Pattern(6, new int[6]{-1,-1,0,0,0,-1}, score_XOOOXX, -2, "XOOOXX"));
         patterns.Add(new Pattern(5, new int[5]{-1,0,0,0,-1}, score_XOOOX, -1, "XOOOX"));
     
         patterns.Add(new Pattern(4, new int[4]{-1,0,0,-1}, score_XOOX, -1));
@@ -69,7 +77,7 @@ public class AI : MonoBehaviour
         patterns.Add(new Pattern(4, new int[4]{1,0,0,-1}, score_XOOB, -1));
         patterns.Add(new Pattern(3, new int[3]{-1,0,1}, score_XOB, -1));
         patterns.Add(new Pattern(3, new int[3]{1,0,-1}, score_XOB, -1));
-    
+        myTurn = 0;
     }
     class ChessPos{
         public int x, y, dist;
@@ -132,14 +140,16 @@ public class AI : MonoBehaviour
             }
         }
     }
-    float Evaluate(State state, int turn)
+    float Evaluate(State state, int turn, bool debug = false)
     {
         float totalScore = 0;
+        int[] count_double_trap = new int[2]{0, 0};
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
             if (state.board[i, j] != -1)                        //prune
                 foreach (var offset in offsets)
                 {
+                    bool double_trap_flag = false;
                     foreach (var pattern in patterns)
                     {
                         int matchResult = MatchResult(state, turn, i, j, offset, pattern);
@@ -147,8 +157,23 @@ public class AI : MonoBehaviour
                         float score = pattern.score[matchResult];
                         if ((turn^matchResult) != myTurn) score *= -1;
                         totalScore += score;
+
+                        if (pattern.name == "XOOOXX" || pattern.name == "XOOXOX")
+                        {
+                            if (!double_trap_flag) count_double_trap[turn^matchResult]++;
+                            double_trap_flag = true;
+                        }
                     }
                 }
+
+        float extraScore;
+        for (int isEnemy = 0; isEnemy < 2; isEnemy++)
+            if (count_double_trap[isEnemy] >= 2) {
+                //if (debug) Debug.Log("Find double_XOOOXX");
+                extraScore = score_double_trap[isEnemy];
+                if ((turn^isEnemy) != myTurn) extraScore *= -1;
+                totalScore += extraScore;
+            }
         return totalScore;
     }
     bool PosOnBoard(Vector2 pos)
@@ -195,8 +220,8 @@ public class AI : MonoBehaviour
             }
             if (flag) {
                 if (pattern.name == "XOOOOX") {
-                    Debug.Log("turn : " + turn + " Find pattern : " + pattern.name + 
-                    " matchResult :" + isEnemy + "pos:(" + i + ", " + j + ")");
+                    //Debug.Log("turn : " + turn + " Find pattern : " + pattern.name + 
+                   //" matchResult :" + isEnemy + "pos:(" + i + ", " + j + ")");
                 }
                 return isEnemy;
             }
@@ -225,11 +250,12 @@ public class AI : MonoBehaviour
         int[,] dist = new int[n, n];
         CalcDist(state, ref dist);
         List<Choice> candidatePos = new List<Choice>();
-
+        bool emptyBoard = true;
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
             {
                 chessBoard.SetText(i, j, "");
+                if (state.board[i, j] != -1) emptyBoard = false;
                 if (state.board[i, j] == -1 && dist[i, j] <= distLimit)
                 {
                     State newState = state.PlaceChess(i, j, myTurn);
@@ -238,14 +264,17 @@ public class AI : MonoBehaviour
                     candidatePos.Add(new Choice(i, j, value));
                 }
             }
+        if (emptyBoard) return new Vector2(n / 2, n / 2);
         candidatePos.Sort(DescendChoice);
+        if (candidatePos.Count > 1)
         for (int k = 0; k < candidatePos.Count; k++)
         {
             if (k >= widthLimit) break;
+            if (k > 0 && Gap(candidatePos[k-1].value, candidatePos[k].value)) break;
             int i = candidatePos[k].x, j = candidatePos[k].y;
             State newState = state.PlaceChess(i, j, myTurn);
             float value = MiniMax(newState, 1, myTurn ^ 1, bestValue, inf);
-            chessBoard.SetText(i, j, (Mathf.Sign(value) * Mathf.Log10(Mathf.Abs(value))).ToString("f1"));
+            chessBoard.SetText(i, j, (Mathf.Sign(value) * Mathf.Log10(Mathf.Abs(value))).ToString("f2"));
             if (value > bestValue)
             {
                 bestValue = value;
@@ -258,8 +287,17 @@ public class AI : MonoBehaviour
             }
         }
         choice = bestChoices[Random.Range(0, bestChoices.Count)];
-        Debug.Log("bestValue : " + bestValue);
+        //Debug.Log("bestValue : " + bestValue);
         return choice;
+    }
+    bool Gap(float a, float b)
+    {
+        if (Mathf.Abs(a) < criticalThreshold && Mathf.Abs(b) < criticalThreshold) return false;
+        if (a < 0 && b > 0) return true;
+        if (a > 0 && b < 0) return true;
+        float lv_a = Mathf.Log10(Mathf.Abs(a)), lv_b = Mathf.Log10(Mathf.Abs(b));
+        if (Mathf.Abs(lv_a - lv_b) > gapThreshold) return true;
+        return false;
     }
     float MiniMax(State state, int depth, int turn, float alpha, float beta)
     {
@@ -267,7 +305,7 @@ public class AI : MonoBehaviour
         //Debug.Log("computation : " + computation);
         if (state.GameOver())
         {
-            Debug.Log("gameover depth:" + depth);
+           // Debug.Log("gameover depth:" + depth);
             if (turn != myTurn) return inf - depth;
             else return - inf + depth;
         }
@@ -300,10 +338,16 @@ public class AI : MonoBehaviour
             for (int k = 0; k < candidatePos.Count; k++)
             {
                 if (k >= widthLimit) break;
+                if (k > 0 && Gap(candidatePos[k-1].value, candidatePos[k].value)) break; //prune
                 int i = candidatePos[k].x, j = candidatePos[k].y;
 
                 State newState = state.PlaceChess(i, j, turn);
-                float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
+                
+                int newDepth;
+                if (candidatePos.Count <= 2) newDepth = depth;
+                else newDepth = depth + 1;
+
+                float value = MiniMax(newState, newDepth, turn ^ 1, alpha, beta);
                 bestValue = Mathf.Max(bestValue, value);
                 alpha = Mathf.Max(alpha, value);
                 if (beta <= alpha || computation >= computationLimit) break;
@@ -316,6 +360,7 @@ public class AI : MonoBehaviour
             for (int k = 0; k < candidatePos.Count; k++)
             {
                 if (k >= widthLimit) break;
+                if (k > 0 && Gap(candidatePos[k-1].value, candidatePos[k].value)) break; //prune
                 int i = candidatePos[k].x, j = candidatePos[k].y;
 
                 State newState = state.PlaceChess(i, j, turn);
@@ -324,7 +369,12 @@ public class AI : MonoBehaviour
                 //    Debug.Log("turn : "+ turn + "  GameOver at pos(" + i + ", " + j + ")");
                 //}
                 //else Debug.Log("turn : "+ turn + "  try pos(" + i + ", " + j + ")");
-                float value = MiniMax(newState, depth + 1, turn ^ 1, alpha, beta);
+
+                int newDepth;
+                if (candidatePos.Count <= 2) newDepth = depth;
+                else newDepth = depth + 1;
+
+                float value = MiniMax(newState, newDepth, turn ^ 1, alpha, beta);
                 bestValue = Mathf.Min(bestValue, value);
                 beta = Mathf.Min(beta, value);
                 if (beta <= alpha || computation >= computationLimit) break;

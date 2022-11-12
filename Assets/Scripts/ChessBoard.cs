@@ -37,6 +37,7 @@ public class ChessBoard : MonoBehaviour
         computer = GameObject.Find("AI").GetComponent<AI>();
         computer.chessBoard = this;
         computer.n = this.n;
+        if (computer.myTurn == 0) StartCoroutine(PlaceChess(computer.NextStep(GetState())));
     }
     void Init()
     {
@@ -105,6 +106,7 @@ public class ChessBoard : MonoBehaviour
         if (hasChess[(int)pos.x, (int)pos.y]) return;
         GameObject ghost = Instantiate(stones[turn], transform);
         ghost.transform.localPosition = BoardPosition(pos);
+        ghost.GetComponentInChildren<TMP_Text>().enabled = false;
         SpriteRenderer sprite = ghost.GetComponent<SpriteRenderer>();
         Color newColor = sprite.color;
         newColor.a = 0.5f;
@@ -127,11 +129,8 @@ public class ChessBoard : MonoBehaviour
         GameObject newChess = Instantiate(stones[turn], transform);
         newChess.transform.localPosition = BoardPosition(pos);
         chess[x, y] = newChess;
-        if (CheckStatus())
-        {
-            GameOver(turn);
-            yield break;
-        }
+        newChess.GetComponentInChildren<TMP_Text>().enabled = false;
+
         if (turn == computer.myTurn)
         {
             if (PosOnBoard(lastComputerPos[turn]))
@@ -143,7 +142,12 @@ public class ChessBoard : MonoBehaviour
             Debug.Log("turn : " + turn + "  current chess : " + chess[x, y]);
             chess[x, y].GetComponentInChildren<TMP_Text>().enabled = true;
         }
-
+        
+        if (CheckStatus())
+        {
+            GameOver(turn);
+            yield break;
+        }
 
         turn = (turn + 1) % 2;
         if (turn == computer.myTurn)
