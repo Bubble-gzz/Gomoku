@@ -18,47 +18,89 @@ public class ChessBoard : MonoBehaviour
     [SerializeField]
     GameObject debugValuePrefab;
     GameObject[,] debugValues;
+    Transform myCanvas;
     int[,] color;
     bool[,] hasChess;
     public int turn, playerTurn;
     List<Vector2> offsets = new List<Vector2>();
-    public bool gameOver;
+    public bool inGame;
     public bool calculating;
     AI computer;
     Vector2[] lastComputerPos = new Vector2[2];
+    TMP_Text status;
+    bool showDebugValue;
+    [SerializeField]
+    GameObject chooseColorPanel;
     void Awake()
     {
-        Init();
+        showDebugValue = false;
+        chess = new GameObject[n, n];
+        debugValues = new GameObject[n, n];
+        color = new int[n, n];
+        hasChess = new bool[n, n];
+        offsets.Add(new Vector2(0, 1));
+        offsets.Add(new Vector2(1, 0));
+        offsets.Add(new Vector2(1, 1));
+        offsets.Add(new Vector2(-1, 1));
+        myCanvas = transform.Find("Canvas");
         DrawLine();
         Spawn();
     }
     void Start()
     {
+        status = GameObject.Find("Canvas/Status").GetComponent<TMP_Text>();
         computer = GameObject.Find("AI").GetComponent<AI>();
         computer.chessBoard = this;
         computer.n = this.n;
-        if (computer.myTurn == 0) StartCoroutine(PlaceChess(computer.NextStep(GetState())));
+        myCanvas.gameObject.SetActive(false);
+        SetDebugValue(showDebugValue);
+        chooseColorPanel.SetActive(true);
+    }
+    public void ExitGame()
+    {
+        Application.Quit();
     }
     void Init()
     {
         lastComputerPos[0] = new Vector2(-1, -1);
         lastComputerPos[1] = new Vector2(-1, -1);
-
-        chess = new GameObject[n, n];
-        debugValues = new GameObject[n, n];
-        color = new int[n, n];
-        hasChess = new bool[n, n];
         turn = 0;
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
+            {
+                if (chess[i, j] != null) {
+                    Destroy(chess[i, j]);
+                    chess[i, j] = null;
+                }
                 hasChess[i, j] = false;
-        offsets.Add(new Vector2(0, 1));
-        offsets.Add(new Vector2(1, 0));
-        offsets.Add(new Vector2(1, 1));
-        offsets.Add(new Vector2(-1, 1));
-        gameOver = false;
+                debugValues[i, j].GetComponentInChildren<TMP_Text>().text = "";
+            }
+        inGame = true;
     }
-
+    public void SetDebugValue(bool flag)
+    {
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                debugValues[i, j].gameObject.SetActive(flag);
+    }
+    public void StartGame(int computerTurn)
+    {
+        Init();
+        computer.myTurn = computerTurn;
+        status.text = "Your Turn";
+        inGame = true;
+        myCanvas.gameObject.SetActive(true);
+        if (computer.myTurn == 0) StartCoroutine(PlaceChess(computer.NextStep(GetState())));
+    }
+    public void HideChessBoard()
+    {
+        myCanvas.gameObject.SetActive(false);
+    }
+    public void ShowChessBoard()
+    {
+        if (!inGame) return;
+        myCanvas.gameObject.SetActive(true);
+    }
     void DrawLine()
     {
         float interval = boardSize / (n - 1), anchor = - boardSize / 2;
@@ -66,32 +108,34 @@ public class ChessBoard : MonoBehaviour
         lineScale.x = boardSize;
         for (int i = 0; i < n; i++)
         {
-            GameObject newLine = Instantiate(gridLinePrefab, transform);
+            GameObject newLine = Instantiate(gridLinePrefab, myCanvas);
             newLine.transform.localScale = lineScale;
             newLine.transform.localPosition = new Vector2(0, anchor + interval * i);
         }
         for (int j = 0; j < n; j++)
         {
-            GameObject newLine = Instantiate(gridLinePrefab, transform);
+            GameObject newLine = Instantiate(gridLinePrefab, myCanvas);
             newLine.transform.localScale = lineScale;
             newLine.transform.rotation = Quaternion.Euler(0, 0, 90);
             newLine.transform.localPosition = new Vector2(anchor + interval * j, 0);
         }
     }
+    
     void Spawn()
     {
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++)
             {
-                GameObject clickArea = Instantiate(clickAreaPrefab, transform);
+                GameObject clickArea = Instantiate(clickAreaPrefab, myCanvas);
                 ClickArea script = clickArea.GetComponent<ClickArea>();
                 clickArea.transform.localPosition = BoardPosition(new Vector2(i, j));
                 script.chessBoard = this;
                 script.pos = new Vector2(i, j);
 
-                GameObject debugValue = Instantiate(debugValuePrefab, transform);
+                GameObject debugValue = Instantiate(debugValuePrefab, myCanvas);
                 debugValues[i, j] = debugValue;
                 debugValue.transform.localPosition = BoardPosition(new Vector2(i, j));
+                debugValue.GetComponentInChildren<TMP_Text>().text = "";
             }
     }
     Vector2 BoardPosition(Vector2 pos)
@@ -102,9 +146,9 @@ public class ChessBoard : MonoBehaviour
     }
     public void CreateGhost(Vector2 pos)
     {
-        if (gameOver || calculating) return;
+        if (!inGame || calculating) return;
         if (hasChess[(int)pos.x, (int)pos.y]) return;
-        GameObject ghost = Instantiate(stones[turn], transform);
+        GameObject ghost = Instantiate(stones[turn], myCanvas);
         ghost.transform.localPosition = BoardPosition(pos);
         ghost.GetComponentInChildren<TMP_Text>().enabled = false;
         SpriteRenderer sprite = ghost.GetComponent<SpriteRenderer>();
@@ -115,19 +159,20 @@ public class ChessBoard : MonoBehaviour
     }
     public void DeleteGhost(Vector2 pos)
     {
-        if (gameOver || calculating) return;
+        if (!inGame || calculating) return;
         if (hasChess[(int)pos.x, (int)pos.y]) return;
         Destroy(chess[(int)pos.x, (int)pos.y]);
     }
     public IEnumerator PlaceChess(Vector2 pos)
     {
-        if (gameOver || calculating) yield break;
+        if (!inGame || calculating) yield break;
         int x = (int)pos.x, y = (int)pos.y;
         if (hasChess[x, y]) yield break;
         hasChess[x, y] = true;
         color[x, y] = turn;
-        GameObject newChess = Instantiate(stones[turn], transform);
+        GameObject newChess = Instantiate(stones[turn], myCanvas);
         newChess.transform.localPosition = BoardPosition(pos);
+        if (chess[x, y] != null) Destroy(chess[x, y]);
         chess[x, y] = newChess;
         newChess.GetComponentInChildren<TMP_Text>().enabled = false;
 
@@ -154,8 +199,11 @@ public class ChessBoard : MonoBehaviour
         {
             calculating = true;
             yield return null;
+            status.text = "AI is thinking... Wait a minute...";
+            yield return null;
             Vector2 computerChoice = computer.NextStep(GetState());
             calculating = false;
+            status.text = "Your Turn";
             StartCoroutine(PlaceChess(computerChoice));
         }
     }
@@ -193,7 +241,15 @@ public class ChessBoard : MonoBehaviour
     void GameOver(int winner)
     {
         Debug.Log("winner : " + turn);
-        gameOver = true;
+        if (turn == computer.myTurn)
+        {
+            status.text = "You Lose";
+        }
+        else 
+        {
+            status.text = "You Win";
+        }
+        inGame = false;
     }
     public State GetState()
     {

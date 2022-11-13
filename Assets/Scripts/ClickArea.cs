@@ -18,17 +18,17 @@ public class ClickArea : MonoBehaviour
 
     void OnMouseEnter()
     {
-        if (chessBoard.gameOver) return;
+        if (!chessBoard.inGame) return;
         chessBoard.CreateGhost(pos);
     }
     void OnMouseExit()
     {
-        if (chessBoard.gameOver) return;
+        if (!chessBoard.inGame) return;
         chessBoard.DeleteGhost(pos);
     }
     void OnMouseDown()
     {
-        if (chessBoard.gameOver) return;
+        if (!chessBoard.inGame) return;
         StartCoroutine(chessBoard.PlaceChess(pos));
     }
 }
